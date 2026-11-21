@@ -1,7 +1,16 @@
 #!/usr/bin/env python3
 """Run headless PoB on variants of a character snapshot and compare.
-Usage: pob_variants.py SNAP.json CONFIG.json [variant ...]   (no variants = all)
-Each variant edits a copy of the snapshot (items/gems) and/or the config (customMods, conditions)."""
+Usage: pob_variants.py SNAP.json CONFIG.json VARIANTS.py [variant ...]   (no variant names = all)
+Each variant edits a copy of the snapshot (items/gems) and/or the config (customMods, conditions).
+VARIANTS.py is executed here and registers variants with the helpers in scope, e.g.:
+
+    @variant('gem21', 'Main skill 21/20 corrupted', '~2 div')
+    def _(s, c): set_gem(s, 'Divine Retribution', level=21, corrupted=True)
+
+    @variant('mastery', 'Custom mod from a mastery', '1 point')
+    def _(s, c): add_mods(c, '+1% to Critical Strike Multiplier per 10 Maximum Energy Shield on Shield')
+
+Set MAINSKILL to pick the main skill."""
 import copy, json, os, subprocess, sys, tempfile
 from concurrent.futures import ThreadPoolExecutor
 
@@ -69,55 +78,6 @@ def variant(key, desc, cost):
         V[key] = (desc, cost, fn); return fn
     return deco
 
-@variant('shield_mastery', 'Shield Mastery: +1% crit multi / 10 ES no escudo', '1 ponto')
-def _(s, c): add_mods(c, '+1% to Critical Strike Multiplier per 10 Maximum Energy Shield on Shield')
-
-@variant('gem_quality', 'Quality 20% em Expert Ret, Second Wind, Sacrifice, Intensify', '~250c')
-def _(s, c):
-    for g in ('Expert Retaliation Support', 'Second Wind Support', 'Sacrifice Support', 'Intensify Support'):
-        set_gem(s, g, quality=20)
-
-@variant('dr21', 'Divine Retribution 21/20 corrompida', '~209c')
-def _(s, c): set_gem(s, 'Divine Retribution', level=21, corrupted=True)
-
-@variant('jewel_life', 'Jewel raro 6% vida + 12% crit multi no lugar da Blight Ember', '~20c')
-def _(s, c): swap_item(s, 'PassiveJewels', 7, 'Test Jewel', 'Crimson Jewel', 2,
-                       ['6% increased maximum Life', '+12% to Global Critical Strike Multiplier'])
-
-@variant('rathpith159', 'Rathpith 159% ES (era 127%)', '~51c')
-def _(s, c): replace_mod(find_item(s, 'Offhand'), 'increased Energy Shield', '159% increased Energy Shield')
-
-@variant('pressure_points', 'Medium cluster com Pressure Points alocado', '~340c + 1 ponto')
-def _(s, c): add_mods(c, '30% increased Critical Strike Chance', 'Your Critical Strikes have a 5% chance to deal Double Damage')
-
-@variant('wither15', 'Inimigo com 15 stacks de Withered (o que a Balance of Terror garante)', '-')
-def _(s, c): c['multiplierWitheredStackCount'] = 15
-
-@variant('balance_terror', 'Balance of Terror (Despair) no lugar da Blight Ember + 15 Withered', '300c-2div')
-def _(s, c):
-    swap_item(s, 'PassiveJewels', 7, 'The Balance of Terror', 'Cobalt Jewel', 3,
-              ['+13% to all Elemental Resistances',
-               "Inflict Withered for 2 seconds on Hit if you've cast Despair in the past 10 seconds",
-               "Immune to Curses if you've cast Despair in the past 10 seconds"])
-    c['multiplierWitheredStackCount'] = 15
-
-@variant('taste_of_hate', 'Taste of Hate no lugar da Doctor\'s Amethyst', '~5c')
-def _(s, c): swap_item(s, 'Flask', 3, 'Taste of Hate', 'Sapphire Flask', 3,
-                       ['30% of Fire and Lightning Damage from Hits taken as Cold Damage during Effect',
-                        'Gain 15% of Physical Damage as Extra Cold Damage during effect',
-                        '30% chance to Avoid being Chilled during Effect',
-                        '30% chance to Avoid being Frozen during Effect'],
-                       ['+40% to Cold Resistance', '+5% to maximum Cold Resistance'])
-
-@variant('cheap_combo', 'COMBO: shield mastery + quality + jewel vida + rathpith159', '~320c + 1 ponto')
-def _(s, c):
-    for k in ('shield_mastery', 'gem_quality', 'jewel_life', 'rathpith159'):
-        V[k][2](s, c)
-
-@variant('plan', 'PLANO: quality + Taste of Hate + Balance of Terror + shield mastery + rathpith159', '~700c + 1 ponto')
-def _(s, c):
-    for k in ('gem_quality', 'taste_of_hate', 'balance_terror', 'shield_mastery', 'rathpith159'):
-        V[k][2](s, c)
 
 KEYS = ['Life', 'CombinedDPS', 'AverageHit', 'CritChance', 'LifeCost', 'TotalEHP', 'ChaosResist', 'ColdResist']
 
@@ -131,8 +91,11 @@ def run(snap, cfg):
 
 
 def main():
+    if len(sys.argv) < 4:
+        sys.exit(__doc__)
     snap, cfg = load(sys.argv[1]), load(sys.argv[2])
-    keys = sys.argv[3:] or list(V)
+    exec(compile(open(sys.argv[3]).read(), sys.argv[3], 'exec'), globals())  # registers variants via @variant
+    keys = sys.argv[4:] or list(V)
     jobs = {'base': (snap, cfg)}
     for k in keys:
         s, c = copy.deepcopy(snap), copy.deepcopy(cfg)
@@ -144,7 +107,7 @@ def main():
     print(f"{'variant':16s} {'DPS':>9s} {'dDPS%':>7s} {'Life':>7s} {'dLife':>6s} {'EHP':>8s} {'chaos':>5s} {'cold':>5s}  cost / desc")
     for k, r in res.items():
         dd = (r['CombinedDPS'] / b['CombinedDPS'] - 1) * 100
-        desc, cost = (V[k][0], V[k][1]) if k in V else ('linha de base', '')
+        desc, cost = (V[k][0], V[k][1]) if k in V else ('baseline', '')
         print(f"{k:16s} {r['CombinedDPS']/1e3:8.0f}k {dd:+6.1f}% {r['Life']:7.0f} {r['Life']-b['Life']:+6.0f} "
               f"{r.get('TotalEHP', 0)/1e3:7.0f}k {r['ChaosResist']:5.0f} {r['ColdResist']:5.0f}  {cost} | {desc}")
 

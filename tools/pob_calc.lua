@@ -5,7 +5,7 @@
 --   CONFIG.json = {"conditionLowLife": true, "usePowerCharges": true, ...} (PoB ConfigOptions var names)
 -- Prints a JSON object with PoB's computed output for the main skill.
 
-local snapPath, cfgPath, mainSkillName = arg[1], arg[2], arg[3] or "Divine Retribution"
+local snapPath, cfgPath, mainSkillName = arg[1], arg[2], arg[3]
 
 -- PoB's bundled LuaJIT accepts compound assignment (a += b, s ..= t); stock LuaJIT does not.
 -- Rewrite `lhs op= expr` lines to `lhs = lhs op (expr)` when files are loaded.

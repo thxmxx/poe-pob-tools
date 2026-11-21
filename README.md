@@ -2,6 +2,8 @@
 
 Headless [Path of Building](https://github.com/PathOfBuildingCommunity/PathOfBuilding) (PoE 1) scripts: calculate a character or a PoB build from the command line, compare item and gem swaps, trim a tree to a level, value passives and masteries, and generate a static progression page with trade links (the "viewer").
 
+**Using Claude Code?** Open the repo and ask. `CLAUDE.md` explains the workflow: fetching your character, comparing upgrades, trade links and the viewer.
+
 Everything runs on stock LuaJIT against an unmodified PoB checkout (git submodule at `tools/vendor/PathOfBuilding`).
 
 ## Setup
@@ -29,7 +31,7 @@ The scripts deal with two gaps between stock LuaJIT and PoB's own runtime:
 | Script | What it does |
 |---|---|
 | `pob.sh SNAP.json [CONFIG.json\|-] [MAIN_SKILL]` | Calculate a character snapshot. Prints stats, life breakdown, reservations, all numeric outputs (JSON). `EXPORT_XML=out.xml` also saves the PoB XML. |
-| `pob_variants.py SNAP.json CONFIG.json [variant ...]` | Run variants of a snapshot (item/gem/config edits) and compare. |
+| `pob_variants.py SNAP.json CONFIG.json VARIANTS.py [variant ...]` | Run variants of a snapshot (item/gem/config edits, defined in your VARIANTS.py) and compare. |
 | `pob_xml.sh BUILD.xml SPEC ITEMSET SKILLSET MAIN_SKILL` | Calculate a PoB XML, choosing tree spec / item set / skill set by title prefix. |
 | `pob_swapitems.sh BUILD.xml ITEMS.json OUT.xml "Main Skill" [LEVEL]` | Put raw item texts into slots (`{"Boots": "<raw item>", "Jewel 61834": "", ...}`; `""` empties a slot), activate flasks, recalc, save the XML. |
 | `pob_trim.sh BUILD.xml LEVEL OUT.xml "Main Skill"` | Trim a tree to the points available at LEVEL, removing the least valuable leaves first. `KEEP_OVERRIDES=1` keeps runegraft/tattoo nodes. |
@@ -54,7 +56,7 @@ tools/viewer/build_viewer.py builds/<name> --items-only  # texts/links/prices on
 # output: builds/<name>/site/{index.html,data.json,icons/}
 ```
 
-A build folder has:
+Start from `tools/viewer/example_spec.py`. A build folder has:
 
 ```
 builds/<name>/
