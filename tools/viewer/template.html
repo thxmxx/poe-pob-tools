@@ -1,0 +1,333 @@
+<meta charset="utf-8">
+<title>__TITLE__</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Spectral+SC:wght@500;600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: sticky stage bar + stats, then an inventory "paper doll" (PoE equipment layout), flasks, jewel sockets, then the shopping list. */
+:root{
+  --bg:#f3f1ec; --panel:#fbfaf7; --slot:#e7e3da; --line:#d6d0c3; --fg:#24211c; --mut:#6f685c;
+  --unique:#9a5420; --rare:#8a7a10; --gemc:#137a74; --gold:#a8771c; --ok:#3f7d4f; --bad:#b04a3a; --link:#2f5f8f;
+  --f-display:"Spectral SC",Georgia,serif; --f-body:Inter,system-ui,-apple-system,"Segoe UI",sans-serif; --f-num:"JetBrains Mono",ui-monospace,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#141210; --panel:#1c1915; --slot:#0d0c0a; --line:#3a332a; --fg:#e9e4da; --mut:#a1978a;
+  --unique:#d98a4a; --rare:#e3d36a; --gemc:#3cc2b9; --gold:#e0b25a; --ok:#79c08a; --bad:#e2806f; --link:#8cb8e6; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#141210; --panel:#1c1915; --slot:#0d0c0a; --line:#3a332a; --fg:#e9e4da; --mut:#a1978a;
+  --unique:#d98a4a; --rare:#e3d36a; --gemc:#3cc2b9; --gold:#e0b25a; --ok:#79c08a; --bad:#e2806f; --link:#8cb8e6; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font:15px/1.45 var(--f-body);margin:0}
+.wrap{max-width:860px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:12px 48px}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+h1{font:600 24px/1.1 var(--f-display);margin:4px 0 2px;letter-spacing:.02em;text-wrap:balance}
+h2{font:600 18px/1.2 var(--f-display);margin:28px 0 10px;letter-spacing:.03em;text-wrap:balance}
+.sub{color:var(--mut);font-size:13px}
+a{color:var(--link)}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+/* sticky bar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding-block:10px 8px;border-bottom:1px solid var(--line);margin-top:10px}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tabs button{flex:1 1 0;min-width:70px;font:600 14px var(--f-body);padding:8px 6px;border-radius:6px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
+.tabs button[aria-pressed="true"]{background:var(--fg);color:var(--bg);border-color:var(--fg)}
+.tabs button small{display:block;font:500 11px var(--f-num);opacity:.75}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin-top:8px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:6px 8px;min-width:0}
+.stat .k{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.stat .v{font:500 17px var(--f-num)}
+.stat .d{font:500 11px var(--f-num);color:var(--mut)}
+.up{color:var(--ok)!important}.down{color:var(--bad)!important}
+.res{display:flex;gap:10px;flex-wrap:wrap;font:500 12px var(--f-num);margin-top:6px;color:var(--mut);align-items:center}
+.res b{font-weight:500}
+.res .cap{color:var(--ok)}.res .low{color:var(--bad)}
+.pob{margin-left:auto;font:600 13px var(--f-body);text-decoration:none;border:1px solid var(--link);padding:4px 10px;border-radius:6px}
+/* paper doll */
+.doll{display:grid;grid-template-columns:1.25fr .8fr 1.25fr .8fr 1.25fr;grid-template-rows:auto auto auto auto;gap:8px;
+  grid-template-areas:"w . h . o" "w . b a o" "w r1 b r2 o" "g . t . bo";margin-top:14px}
+.slot{position:relative;background:var(--slot);border:1px solid var(--line);border-radius:4px;display:flex;align-items:center;justify-content:center;min-height:64px;text-decoration:none;color:inherit;cursor:pointer;padding:4px}
+.slot img{max-height:100%;max-width:100%;object-fit:contain;image-rendering:auto}
+.slot.unique{border-color:var(--unique)}.slot.rare{border-color:var(--rare)}
+.slot.empty{border-style:dashed;opacity:.55}
+.slot.ghost{opacity:.18;pointer-events:none}
+.slot .tag{position:absolute;bottom:2px;right:2px;font:500 10px var(--f-num);background:var(--panel);color:var(--gold);border:1px solid var(--line);border-radius:3px;padding:0 3px}
+.slot .tag.own{color:var(--ok)}
+.slot .tag.done{color:var(--ok)}
+.slot .lbl{position:absolute;top:2px;left:4px;font-size:9px;color:var(--mut);text-transform:uppercase;letter-spacing:.06em}
+.slot .var{position:absolute;top:2px;right:3px;font:600 10px var(--f-num);color:var(--link)}
+.slot.new{box-shadow:0 0 0 2px var(--gold) inset}
+.s-w{grid-area:w;min-height:220px}.s-o{grid-area:o;min-height:220px}.s-h{grid-area:h;min-height:90px}.s-b{grid-area:b;min-height:150px}
+.s-g{grid-area:g;min-height:90px}.s-bo{grid-area:bo;min-height:90px}.s-t{grid-area:t;min-height:50px}.s-a{grid-area:a}.s-r1{grid-area:r1}.s-r2{grid-area:r2}
+.flasks{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:8px}
+.flasks .slot{min-height:96px}
+.jewels{display:grid;grid-template-columns:repeat(auto-fill,minmax(64px,1fr));gap:8px;margin-top:8px}
+.jewels .slot{min-height:64px;border-radius:50%;aspect-ratio:1;max-width:100%}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--mut);margin-top:10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+/* list */
+.items{display:flex;flex-direction:column;gap:8px}
+.it{display:grid;grid-template-columns:48px minmax(0,1fr) auto;gap:10px;align-items:start;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;scroll-margin-top:170px}
+.it img{width:48px;height:48px;object-fit:contain}
+.it .n{font-weight:600}.it .n.unique{color:var(--unique)}.it .n.rare{color:var(--rare)}
+.it .r{font-size:13px;color:var(--mut);margin-top:2px}.it .r b{color:var(--fg);font-weight:600}
+.it .p{font:500 14px var(--f-num);color:var(--gold);text-align:right;white-space:nowrap}
+.it .p.own{color:var(--ok)}
+.it .mods{font:12px/1.4 var(--f-body);color:var(--mut);margin:4px 0 0;padding:0;list-style:none}
+.it details summary{font-size:12px;color:var(--link);cursor:pointer;margin-top:4px}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.btns a{font-size:13px;text-decoration:none;border:1px solid var(--line);border-radius:5px;padding:3px 9px}
+.chk{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mut);margin-top:6px;justify-content:flex-end}
+.chk input{width:18px;height:18px}
+.it.done .n{text-decoration:line-through;opacity:.7}
+.newb{font:600 10px var(--f-body);color:var(--gold);border:1px solid var(--gold);border-radius:3px;padding:0 4px;margin-left:6px;vertical-align:2px;letter-spacing:.04em}
+.opts{display:flex;flex-direction:column;gap:4px;margin-top:8px}
+.opt{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:6px;align-items:center;font-size:13px;border:1px solid var(--line);border-radius:6px;padding:5px 8px;cursor:pointer;background:var(--bg)}
+.opt input{margin:0}
+.opt .dd{font:500 12px var(--f-num);color:var(--mut);white-space:nowrap}
+.opt.sel{border-color:var(--fg)}
+.tot{display:flex;justify-content:space-between;gap:10px;font-weight:600;padding:4px 0}
+.box{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:6px 4px;border-bottom:1px solid var(--line);text-align:right;font-family:var(--f-num);font-weight:500}
+td:first-child,th:first-child{text-align:left;font-family:var(--f-body)}
+th{color:var(--mut);font:500 11px var(--f-body);text-transform:uppercase;letter-spacing:.06em}
+.scroll{overflow-x:auto}
+ul.notes{margin:0;padding-left:18px;font-size:14px}ul.notes li{margin:4px 0}
+/* game-style item tooltip (always dark, like the game) */
+.ptip{--ui:#af6025;--hbg:linear-gradient(#2a1608,#1a0e05 60%,#2a1608);background:#0b0907;border:1px solid var(--ui);color:#8888ff;font:15px/1.3 "Spectral SC",Georgia,serif;text-align:center;min-width:260px;max-width:min(380px,calc(100vw - 32px));box-shadow:0 6px 24px rgba(0,0,0,.55)}
+.ptip.rare{--ui:#ffff77;--hbg:linear-gradient(#2b2a10,#191806 60%,#2b2a10)}
+.ptip .ph{background:var(--hbg);border-bottom:1px solid var(--ui);padding:6px 14px;color:var(--ui)}
+.ptip .ph div{font-size:17px;line-height:1.25}
+.ptip .pbody{padding:6px 12px 10px}
+.ptip .sep{height:1px;margin:7px auto;width:85%;background:linear-gradient(90deg,transparent,var(--ui),transparent);opacity:.7}
+.ptip .pp{color:#7f7f7f}.ptip .pp b{color:#fff;font-weight:500}
+.ptip .m{padding:1px 0}.ptip .m.crafted{color:#b4b4ff}.ptip .m.fractured{color:#a29162}
+.ptip .fl{color:#d20000}.ptip .inf{color:#7f7f7f}
+.ptip .own{color:#5fb37a;font-size:13px;margin-top:6px}.ptip .pr{color:#e0b25a;font-size:13px;margin-top:6px}
+#tip{position:fixed;z-index:30;pointer-events:none}
+#pop{position:fixed;z-index:31;max-height:85vh;overflow:auto;-webkit-overflow-scrolling:touch}
+#pop .pane{background:var(--panel);border:1px solid var(--line);border-top:0;padding:10px;font:14px var(--f-body);color:var(--fg);text-align:left}
+#pop .pane .r{font-size:13px;color:var(--mut)}#pop .pane .r b{color:var(--fg)}
+#pop .x{position:absolute;top:4px;right:6px;background:none;border:0;color:#c8c0b0;font-size:20px;cursor:pointer;line-height:1}
+@media (max-width:600px){#pop{left:max(8px,env(safe-area-inset-left,0px))!important;right:max(8px,env(safe-area-inset-right,0px));bottom:calc(8px + env(safe-area-inset-bottom,0px));top:auto!important}#pop .ptip{max-width:none}}
+button.slot{font:inherit}
+.ptip.gemtip{--ui:#1ba29b;--hbg:linear-gradient(#0c2624,#071615 60%,#0c2624)}
+.skills{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,380px),1fr));gap:10px}
+.grp{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px;min-width:0}
+.grp.main{border-color:var(--gold)}
+.grp h3{font:600 14px var(--f-body);margin:0 0 6px;display:flex;justify-content:space-between;gap:8px}
+.grp h3 span{font:500 12px var(--f-num);color:var(--mut)}
+.gem{display:grid;grid-template-columns:34px minmax(0,1fr);gap:8px;align-items:center;padding:5px 0;border-top:1px solid var(--line)}
+.gem:first-of-type{border-top:0}
+.gem img{width:34px;height:34px;object-fit:contain;cursor:help}
+.gem .gn{font-weight:600;font-size:14px;color:var(--gemc)}
+.gem .gl{font:500 11px var(--f-num);color:var(--mut);margin-left:4px}
+.gem .btns{margin-top:3px}.gem .btns a{font-size:12px;padding:2px 7px}
+.gem .btns a b{font-family:var(--f-num);font-weight:500;color:var(--gold)}
+.gem.done .gn{text-decoration:line-through;opacity:.7}
+.gem .chk{justify-content:flex-start;margin-top:3px}
+button:focus-visible,a:focus-visible,input:focus-visible{outline:2px solid var(--link);outline-offset:2px}
+@media (max-width:480px){.doll{gap:5px}.s-w,.s-o{min-height:180px}.stat{padding:5px 6px}.stat .v{font-size:14px}.stats{gap:4px}.s-r1 .lbl,.s-r2 .lbl,.s-a .lbl{display:none}}
+</style>
+
+<div class="wrap">
+  <h1>__HEADING__</h1>
+  <div class="sub" id="meta"></div>
+
+  <div class="bar">
+    <div class="tabs" id="tabs" role="group" aria-label="Fase"></div>
+    <div class="stats" id="stats"></div>
+    <div class="res" id="res"></div>
+  </div>
+
+  <div class="sub" id="desc" style="margin-top:10px"></div>
+  <div class="doll" id="doll"></div>
+  <div class="flasks" id="flasks"></div>
+  <div class="jewels" id="jewels"></div>
+  <div class="legend">
+    <span><i style="background:var(--ok)"></i>já tenho</span>
+    <span><i style="background:var(--gold)"></i>preço em div · toque no item: detalhes, trade e variações</span>
+    <span><i style="border:2px solid var(--gold)"></i>entra nesta fase</span>
+    <span><b style="color:var(--link)">1/3</b> tem variações</span>
+  </div>
+
+  <h2>Skills e gemas</h2>
+  <div class="sub" style="margin-bottom:8px">Iguais em todas as fases. Toque no preço para abrir o trade daquela versão (nível/qualidade). O grupo dourado é a skill principal.</div>
+  <div class="skills" id="skills"></div>
+  <div class="box" style="margin-top:10px">
+    <div class="tot"><span>Gemas como no PoB (21/20 corrompidas etc.)</span><span class="num" id="gem-exact"></span></div>
+    <div class="tot"><span>Versão econômica (20/20 onde dá)</span><span class="num" id="gem-econ"></span></div>
+    <div class="tot"><span>Falta (econômica, sem as marcadas)</span><span class="num" id="gem-left"></span></div>
+    <div class="sub" id="gem-note"></div>
+  </div>
+  <div id="tip" hidden></div><div id="pop" hidden role="dialog" aria-label="Item"></div>
+  <h2>Itens desta fase</h2>
+  <div class="items" id="items"></div>
+
+  <h2>Custo</h2>
+  <div class="box">
+    <div class="tot"><span>Total desta fase (só o que falta comprar)</span><span class="num" id="cost-all"></span></div>
+    <div class="tot"><span>Descontando os marcados como comprados</span><span class="num" id="cost-left"></span></div>
+    <div class="sub">Preços do trade (securable, Foulborn: No). Gemas têm total próprio abaixo; oils e viscera não estão no total.</div>
+  </div>
+
+  <h2>Comparar fases</h2>
+  <div class="box scroll"><table id="cmp"></table>
+  <div class="sub" style="margin-top:6px">Com as variações escolhidas acima. Cada linha abre o PoB daquela fase.</div></div>
+
+  <h2>Notas</h2>
+  <div class="box"><ul class="notes" id="notes"></ul></div>
+</div>
+
+<script>
+const fmtM=v=>(v/1e6).toLocaleString('pt-BR',{maximumFractionDigits:2,minimumFractionDigits:2})+'M';
+const fmtK=v=>(v/1e3).toLocaleString('pt-BR',{maximumFractionDigits:1,minimumFractionDigits:1})+'k';
+const fmtDiv=p=>p===0?'—':p<1?'<1 div':(Math.round(p*10)/10).toLocaleString('pt-BR')+' div';
+const pct=(a,b)=>{if(!b)return '';const d=(a/b-1)*100;if(Math.abs(d)<0.05)return '±0%';return (d>0?'+':'')+d.toLocaleString('pt-BR',{maximumFractionDigits:1})+'%'};
+const cls=(a,b)=>!b||Math.abs(a/b-1)<0.0005?'':(a>b?'up':'down');
+const K=k=>'viewer:'+document.title+':'+k;
+const store={get(k,d){try{const v=localStorage.getItem(k);return v?JSON.parse(v):d}catch(e){return d}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
+let D, stageId=store.get(K('stage'),null), pick=store.get(K('pick'),{}), done=store.get(K('done'),{});
+
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function resolve(st,p){const out={};for(const [s,v] of Object.entries(st.slots)){out[s]=v==='*'?((p||pick)[s]&&D.choices[s].includes((p||pick)[s])?(p||pick)[s]:D.choices[s][0]):v}return out}
+function keyFor(st,p){const dims=Object.keys(st.slots).filter(s=>st.slots[s]==='*').sort();return dims.map(d=>d+'='+resolve(st,p)[d]).join('|')}
+function result(st,p){return D.results[st.id][keyFor(st,p)]}
+function stageCost(st){const r=resolve(st);let all=0,left=0;for(const k of new Set(Object.values(r))){const it=D.items[k];if(!it||it.owned)continue;all+=it.price;if(!done[k])left+=it.price}return {all,left}}
+
+function renderTabs(){
+  const el=document.getElementById('tabs');
+  el.innerHTML=D.stages.map(st=>`<button type="button" data-st="${st.id}" aria-pressed="${st.id===stageId}">${esc(st.label)}<small>nv ${st.level} · ${fmtDiv(stageCost(st).all)}</small></button>`).join('');
+}
+function renderStats(){
+  const i=D.stages.findIndex(s=>s.id===stageId), st=D.stages[i], r=result(st), prev=i>0?result(D.stages[i-1]):null;
+  const cell=(k,v,f,pv)=>`<div class="stat"><div class="k">${k}</div><div class="v">${f(v)}</div><div class="d ${pv!=null?cls(v,pv):''}">${pv!=null?pct(v,pv):'&nbsp;'}</div></div>`;
+  document.getElementById('stats').innerHTML=
+    cell('DPS',r.dps,fmtM,prev&&prev.dps)+cell('EHP',r.ehp,fmtK,prev&&prev.ehp)+cell('Vida',r.life,v=>Math.round(v).toLocaleString('pt-BR'),prev&&prev.life)+
+    `<div class="stat"><div class="k">Custo</div><div class="v">${fmtDiv(stageCost(st).all)}</div><div class="d">falta ${fmtDiv(stageCost(st).left).replace(' div','')}</div></div>`;
+  const rc=(n,v,cap)=>`<span>${n} <b class="${v>=cap?'cap':'low'}">${Math.round(v)}%</b></span>`;
+  document.getElementById('res').innerHTML=rc('Fogo',r.fire,75)+rc('Frio',r.cold,75)+rc('Raio',r.light,75)+rc('Chaos',r.chaos,0)+
+    (r.pobb?`<a class="pob" href="${r.pobb}" target="_blank" rel="noopener">Abrir PoB ↗</a>`:'');
+  document.getElementById('desc').textContent=st.desc;
+}
+function slotHTML(sid,area,label){
+  const st=D.stages.find(s=>s.id===stageId), i=D.stages.indexOf(st), r=resolve(st), k=r[sid], it=k&&D.items[k];
+  const prevR=i>0?resolve(D.stages[i-1]):{}, isNew=k&&prevR[sid]!==k&&!it.owned;
+  const varB=st.slots[sid]==='*'?`<span class="var">${D.choices[sid].indexOf(k)+1}/${D.choices[sid].length}</span>`:'';
+  if(!it)return `<div class="slot empty ${area}" title="${esc(label)} vazio"><span class="lbl">${esc(label)}</span></div>`;
+  const tag=it.owned?'<span class="tag own">✓</span>':done[k]?'<span class="tag done">✓ comprado</span>':`<span class="tag">${fmtDiv(it.price)}</span>`;
+  const img=it.icon?`<img src="${it.icon}" alt="${esc(it.name)}" loading="lazy">`:`<span class="sub">${esc(it.name)}</span>`;
+  return `<button type="button" class="slot ${it.rarity} ${area} ${isNew?'new':''}" data-pslot="${esc(sid)}" aria-label="${esc(it.name)}"><span class="lbl">${esc(label)}</span>${varB}${img}${tag}</button>`;
+}
+function tipHTML(it){
+  const sep='<div class="sep"></div>', parts=[];
+  if(it.props.length)parts.push(it.props.map(([k,v])=>`<div class="pp">${esc(k)}: <b>${esc(k==='Quality'?'+'+v+'%':v)}</b></div>`).join(''));
+  if(it.implicits.length)parts.push(it.implicits.map(([t,c])=>`<div class="m ${c}">${esc(t)}</div>`).join(''));
+  if(it.explicits.length)parts.push(it.explicits.map(([t,c])=>`<div class="m ${c}">${esc(t)}</div>`).join('')+it.flags.filter(f=>f==='Corrupted').map(f=>`<div class="fl">${f}</div>`).join(''));
+  const infl=it.flags.filter(f=>/ Item$/.test(f)&&f!=='Fractured Item');
+  if(infl.length)parts.push(infl.map(f=>`<div class="inf">${esc(f)}</div>`).join(''));
+  const foot=it.owned?'<div class="own">✓ já tenho</div>':`<div class="pr">${fmtDiv(it.price)}</div>`;
+  const nm=it.rarity==='rare'&&it.base?`<div>${esc(it.name)}</div><div>${esc(it.base)}</div>`:`<div>${esc(it.name)}</div>${it.base&&it.base!==it.name?`<div>${esc(it.base)}</div>`:''}`;
+  return `<div class="ptip ${it.rarity}"><div class="ph">${nm}</div><div class="pbody">${parts.join(sep)}${foot}</div></div>`;
+}
+function optsHTML(st,sid,k,prefix){
+  const base=result(st);
+  return '<div class="opts" role="radiogroup" aria-label="Variações">'+D.choices[sid].map(c=>{
+    const p2=Object.assign({},pick,{[sid]:c}), rr=result(st,p2), ci=D.items[c];
+    return `<label class="opt ${c===k?'sel':''}"><input type="radio" name="${prefix}-${esc(sid)}" value="${c}" data-slot="${esc(sid)}" ${c===k?'checked':''}><span>${esc(ci.name)} <span class="sub">· ${fmtDiv(ci.price)}</span></span><span class="dd"><span class="${cls(rr.dps,base.dps)}">${pct(rr.dps,base.dps)} DPS</span> · <span class="${cls(rr.ehp,base.ehp)}">${pct(rr.ehp,base.ehp)} EHP</span></span></label>`}).join('')+'</div>';
+}
+let popSlot=null;
+const curItem=sid=>{const st=D.stages.find(s=>s.id===stageId);const k=resolve(st)[sid];return [st,k,k&&D.items[k]]};
+function place(el,anchor){
+  const r=anchor.getBoundingClientRect(), w=el.offsetWidth, h=el.offsetHeight, vw=innerWidth, vh=innerHeight;
+  let x=r.right+8; if(x+w>vw-8)x=r.left-w-8; if(x<8)x=Math.max(8,Math.min(vw-w-8,r.left+r.width/2-w/2));
+  let y=r.top; if(y+h>vh-8)y=Math.max(8,vh-h-8);
+  el.style.left=x+'px'; el.style.top=y+'px';
+}
+function showTip(btn){
+  if(popSlot)return; const [,,it]=curItem(btn.dataset.pslot); if(!it)return;
+  const t=document.getElementById('tip'); t.innerHTML=tipHTML(it); t.hidden=false; place(t,btn);
+}
+function hideTip(){document.getElementById('tip').hidden=true}
+function openPop(sid){
+  hideTip(); popSlot=sid; const [st,k,it]=curItem(sid), el=document.getElementById('pop');
+  if(!it){closePop();return}
+  const btns=it.links.length?`<div class="btns">${it.links.map(([t,h])=>`<a href="${h}" target="_blank" rel="noopener">Trade: ${esc(t)} ↗</a>`).join('')}</div>`:'';
+  const opts=st.slots[sid]==='*'?`<div class="sub" style="margin-top:8px">Variações (Δ vs a escolha atual)</div>`+optsHTML(st,sid,k,'p'):'';
+  el.innerHTML=`<button class="x" type="button" data-close aria-label="Fechar">×</button>${tipHTML(it)}<div class="pane">${it.roll?`<div class="r">${it.roll}</div>`:''}${btns}${opts}<div class="btns"><a href="#i-${k}" data-close>ver na lista</a></div></div>`;
+  el.hidden=false;
+  const a=document.querySelector(`[data-pslot="${CSS.escape(sid)}"]`);
+  if(innerWidth>600&&a)place(el,a);
+}
+function closePop(){popSlot=null;document.getElementById('pop').hidden=true}
+function renderDoll(){
+  const L=Object.fromEntries(D.slots.map(s=>[s.id,s.label]));
+  const map=[['Weapon 1','s-w'],['Helmet','s-h'],['Body Armour','s-b'],['Gloves','s-g'],['Boots','s-bo'],['Belt','s-t'],['Amulet','s-a'],['Ring 1','s-r1'],['Ring 2','s-r2']];
+  const st=D.stages.find(s=>s.id===stageId), w=D.items[resolve(st)['Weapon 1']];
+  document.getElementById('doll').innerHTML=map.map(([s,a])=>slotHTML(s,a,L[s])).join('')+
+    `<div class="slot ghost s-o" aria-hidden="true">${w&&w.icon?`<img src="${w.icon}" alt="">`:''}</div>`;
+  document.getElementById('flasks').innerHTML=D.slots.filter(s=>s.group==='flask').map(s=>slotHTML(s.id,'',s.label)).join('');
+  document.getElementById('jewels').innerHTML=D.slots.filter(s=>s.group==='jewel').map(s=>slotHTML(s.id,'',s.id.startsWith('Gloves')?'Abyss':'')).join('');
+}
+function renderItems(){
+  const st=D.stages.find(s=>s.id===stageId), i=D.stages.indexOf(st), r=resolve(st), prevR=i>0?resolve(D.stages[i-1]):{}, base=result(st);
+  const rows=[];
+  for(const s of D.slots){
+    const k=r[s.id]; if(!k)continue; const it=D.items[k];
+    const isNew=prevR[s.id]!==k&&!it.owned;
+    const opts=st.slots[s.id]==='*'?optsHTML(st,s.id,k,'v'):'';
+    const mods='';
+    const btns=it.links.length?`<div class="btns">${it.links.map(([t,h])=>`<a href="${h}" target="_blank" rel="noopener">${esc(t)} ↗</a>`).join('')}</div>`:'';
+    const right=it.owned?'<div class="p own">tenho ✓</div>':`<div class="p">${fmtDiv(it.price)}</div><label class="chk"><input type="checkbox" data-done="${k}" ${done[k]?'checked':''}>comprei</label>`;
+    rows.push(`<div class="it ${done[k]&&!it.owned?'done':''}" id="i-${k}">${it.icon?`<img src="${it.icon}" alt="">`:'<span></span>'}<div style="min-width:0"><div class="n ${it.rarity}">${esc(it.name)}${isNew?'<span class="newb">NOVO</span>':''}</div><div class="sub">${esc(s.label)}${it.base&&it.base!==it.name?' · '+esc(it.base):''}</div>${it.roll?`<div class="r">${it.roll}</div>`:''}${btns}${opts}<details><summary>mods</summary>${tipHTML(it)}</details></div><div>${right}</div></div>`);
+  }
+  document.getElementById('items').innerHTML=rows.join('');
+  const c=stageCost(st);
+  document.getElementById('cost-all').textContent=fmtDiv(c.all);
+  document.getElementById('cost-left').textContent=fmtDiv(c.left);
+}
+function renderCmp(){
+  document.getElementById('cmp').innerHTML='<tr><th>Fase</th><th>DPS</th><th>EHP</th><th>Vida</th><th>Custo</th></tr>'+D.stages.map(st=>{const r=result(st);return `<tr><td>${r.pobb?`<a href="${r.pobb}" target="_blank" rel="noopener">${esc(st.label)}</a>`:esc(st.label)} <span class="sub">nv ${st.level}</span></td><td>${fmtM(r.dps)}</td><td>${fmtK(r.ehp)}</td><td>${Math.round(r.life).toLocaleString('pt-BR')}</td><td>${fmtDiv(stageCost(st).all)}</td></tr>`}).join('');
+}
+function gemTip(g){
+  return `<div class="ptip gemtip"><div class="ph"><div>${esc(g.name)}${g.support?' Support':''}</div></div><div class="pbody"><div class="pp">${g.support?'Support':'Skill'}</div><div class="sep"></div><div class="pp">Level: <b>${g.level}</b></div>${g.quality?`<div class="pp">Quality: <b>+${g.quality}%</b></div>`:''}<div class="pr">${g.links.map(l=>l[0]+': '+(l[2]!=null?fmtDiv(l[2]):'?')).join(' · ')}</div></div></div>`;
+}
+function renderSkills(){
+  let exact=0,econ=0,left=0;
+  document.getElementById('skills').innerHTML=D.skills.map((gr,gi)=>{
+    const main=gr.gems.some(g=>g.name===D.skill);
+    const rows=gr.gems.map((g,j)=>{
+      const ps=g.links.map(l=>l[2]).filter(x=>x!=null), cheap=ps.length?Math.min(...ps):0, key='gem:'+g.name;
+      exact+=g.links[0][2]||0; econ+=cheap; if(!done[key])left+=cheap;
+      return `<div class="gem ${done[key]?'done':''}"><img src="${g.icon||''}" alt="" data-gem="${gi}:${j}"><div style="min-width:0"><span class="gn">${esc(g.name)}</span><span class="gl">${g.level}/${g.quality}</span><div class="btns">${g.links.map(([t,h,p])=>`<a href="${h}" target="_blank" rel="noopener">${esc(t)} · <b>${p!=null?fmtDiv(p):'?'}</b> ↗</a>`).join('')}</div><label class="chk"><input type="checkbox" data-done="${esc(key)}" ${done[key]?'checked':''}>comprei</label></div></div>`}).join('');
+    return `<div class="grp ${main?'main':''}"><h3>${esc(gr.label)}<span>${gr.gems.length}L</span></h3>${rows}</div>`}).join('');
+  document.getElementById('gem-exact').textContent=fmtDiv(exact);
+  document.getElementById('gem-econ').textContent=fmtDiv(econ);
+  document.getElementById('gem-left').textContent=fmtDiv(left);
+  document.getElementById('gem-note').textContent=`Preços do trade em ${D.gemDate} (mediana dos 3 mais baratos), 1 div = ${D.gemRate}c. Gemas não entram no custo das fases.`;
+}
+function all(){renderSkills();renderTabs();renderStats();renderDoll();renderItems();renderCmp();if(popSlot)openPop(popSlot)}
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-st]');if(b){stageId=b.dataset.st;store.set(K('stage'),stageId);closePop();all();return}
+  const sl=e.target.closest('[data-pslot]');if(sl){popSlot===sl.dataset.pslot?closePop():openPop(sl.dataset.pslot);return}
+  if(e.target.closest('[data-close]')){closePop();return}
+  const gm=e.target.closest('[data-gem]');if(gm&&!fine.matches){showGemTip(gm);return}
+  if(!fine.matches&&!e.target.closest('#tip'))hideTip();
+  if(popSlot&&!e.target.closest('#pop'))closePop();
+});
+const fine=matchMedia('(hover:hover) and (pointer:fine)');
+document.addEventListener('mouseover',e=>{if(!fine.matches)return;const sl=e.target.closest('[data-pslot]');if(sl)showTip(sl);const gm=e.target.closest('[data-gem]');if(gm)showGemTip(gm)});
+function showGemTip(el){const [a,b]=el.dataset.gem.split(':').map(Number);const t=document.getElementById('tip');t.innerHTML=gemTip(D.skills[a].gems[b]);t.hidden=false;place(t,el)}
+document.addEventListener('mouseout',e=>{const sl=e.target.closest('[data-pslot],[data-gem]');if(sl&&!sl.contains(e.relatedTarget))hideTip()});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closePop()});
+addEventListener('scroll',()=>{hideTip();if(popSlot&&innerWidth>600)closePop()},{passive:true});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.dataset.slot){pick[t.dataset.slot]=t.value;store.set(K('pick'),pick);all()}
+  if(t.dataset.done){done[t.dataset.done]=t.checked;store.set(K('done'),done);all()}
+});
+fetch('data.json').then(r=>r.json()).then(d=>{D=d;if(!D.stages.some(s=>s.id===stageId))stageId=D.defaultStage||D.stages[0].id;
+  document.getElementById('meta').textContent=`${D.skill} · ${D.char} · PoB calculado em ${D.updated}${D.reference?' · referência: '+D.reference:''}`;
+  document.getElementById('notes').innerHTML=(D.notes||[]).map(n=>`<li>${n}</li>`).join('');all()})
+.catch(()=>{document.getElementById('desc').textContent='Não consegui carregar data.json. Recarregue a página.'});
+</script>
