@@ -50,6 +50,10 @@ Ask for the account name (`Name#1234`), the character name and the league. Keep 
 - Removing a jewel like Impossible Escape or a cluster deallocates the nodes that depended on it. Adding it back doesn't reallocate them, so always swap from the original XML.
 - `pob_trim.sh` removes the least valuable leaf nodes to fit a level. `KEEP_OVERRIDES=1` keeps runegraft/tattoo nodes.
 - If two configurations give identical DPS to the last digit, check why (node counts, item really applied) before reporting.
+- Some supports only count when their config value is set. Example: Overloaded Intensity does nothing until `"OverloadedIntensity": 3` is in the config. If a gem that most players use looks worthless in PoB, check `Modules/ConfigOptions.lua` for its option.
+- A jewel socketed inside a cluster jewel isn't built by PoB's character import. `pob_calc.lua` applies that jewel's mods as custom mods and prints a note on stderr. Compare resistances with the player's in-game character sheet when in doubt.
+- Runegrafts only work on allocated masteries. A runegraft on an unallocated mastery does nothing in game and in PoB.
+- `pob_variants.py` picks the main skill from the `MAINSKILL` environment variable.
 
 ## Typical tasks
 

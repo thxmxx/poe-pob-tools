@@ -86,6 +86,18 @@ build.importTab:ImportItemsAndSkills(charData, true, true, true)
 build.importTab:ImportPassiveTreeAndJewels(charData, true)
 runCallback("OnFrame")
 
+-- A jewel socketed inside a cluster jewel is imported into the socket id the game reports, which PoB's generated
+-- cluster subgraph doesn't contain, so PoB ignores that jewel (e.g. a Balance of Terror in a medium cluster).
+-- Collect such jewels' mods and apply them as custom config mods after the config is loaded.
+local orphanMods = {}
+for nodeId, itemId in pairs(build.spec.jewels) do
+	local item = itemId and itemId ~= 0 and build.itemsTab.items[itemId]
+	if item and not build.spec.nodes[nodeId] then
+		for _, ml in ipairs(item.explicitModLines or {}) do orphanMods[#orphanMods + 1] = ml.line end
+		io.stderr:write(string.format("jewel %s sits in cluster socket %s that PoB doesn't build; applying its mods as custom mods\n", item.name, nodeId))
+	end
+end
+
 -- Apply config
 if cfgPath and cfgPath ~= "" and cfgPath ~= "-" then
 	local cfg = dkjson.decode(readFile(cfgPath))
@@ -101,6 +113,14 @@ if cfgPath and cfgPath ~= "" and cfgPath ~= "-" then
 	cfg._flasks = nil
 	for k, v in pairs(cfg) do build.configTab.input[k] = v end
 	build.configTab:BuildModList()
+end
+
+if #orphanMods > 0 then
+	local cur = build.configTab.input.customMods or ""
+	build.configTab.input.customMods = (cur ~= "" and cur .. "\n" or "") .. table.concat(orphanMods, "\n")
+	build.configTab:BuildModList()
+	build.buildFlag = true
+	runCallback("OnFrame")
 end
 
 -- Pick the main socket group containing the requested skill
